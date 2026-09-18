@@ -1,4 +1,4 @@
-// L9: DOM 交互。下一阶段只需将 mockCompletion 替换为网关请求。
+// L9: 页面通过同源 HTTP 调用 L8 Java 网关，L7 仍使用服务端 Mock。
 const $ = selector => document.querySelector(selector);
 const weeks = [
   ['L8', '建立系统骨架', 'Java 网关与 Mock Runtime 跑通端到端请求。'],
@@ -45,25 +45,43 @@ const savedNote = readSaved('tf-note', ''); $('#note-text').value = typeof saved
 $('#note-text').addEventListener('input', () => { $('#save-status').textContent = '有未保存的修改'; });
 $('#save-note').addEventListener('click', () => { $('#save-status').textContent = save('tf-note', $('#note-text').value) ? '已保存到当前浏览器 · ' + new Date().toLocaleTimeString('zh-CN') : '保存失败：浏览器存储不可用，请复制备份'; });
 let busy = false; let count = 0;
-const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 function trace(step, state) { const row = document.querySelector(`[data-step="${step}"]`); row.className = `trace-step ${state}`; row.querySelector('.step-state').textContent = state === 'done' ? '已完成' : state === 'active' ? '处理中' : step === 0 ? '待发送' : '待处理'; }
-function addMessage(role, text) { $('#welcome')?.remove(); const item = document.createElement('div'); item.className = `message ${role}`; const label = document.createElement('small'); label.textContent = role === 'user' ? '你' : '✳ Factory · 模拟回复'; const content = document.createElement('p'); content.textContent = text; item.append(label, content); $('#messages').append(item); $('#messages').scrollTop = $('#messages').scrollHeight; }
-// 教学桩：不连接 Java、C++ 或 GPU，不产生真实模型 Token 计数。
-async function mockCompletion(prompt) {
-  trace(0, 'active'); await wait(180); trace(0, 'done'); trace(1, 'active');
-  await wait(280); trace(1, 'done'); trace(2, 'active'); await wait(450);
-  if (/网关|java/i.test(prompt)) return 'Java 网关是 L8 平台与网关层的入口。\n\n它接收请求、分配请求标识，后续会负责鉴权、限流与用量记录，再把工作交给 L7 推理服务。\n\n今天这一步由浏览器模拟；下一阶段，我们会让这个页面真正调用 Java 的 /v1/chat/completions 接口。';
-  if (/gpu|请求|链路/i.test(prompt)) return '一次请求，会沿着系统逐层向下：\n\nL9 浏览器 → L8 Java 网关 → L7 C++ 推理服务 → L4 CUDA 运行时 → L1 GPU 硬件。\n\n多 GPU 实验还会涉及 L6 通信框架和 L2 互联。当前仅演示前三个阶段，没有执行真实 GPU 计算。\n\n试着观察右侧轨迹：每一层都有自己的职责和验收信号。';
-  return '今天从一个最小闭环开始：输入问题 → 构造请求 → 展示响应。\n\n先读 frontend/app.js 中的提交事件和 mockCompletion，理解页面如何从“等待”变成“完成”。接着修改一条预设回复，重新发送并观察变化。\n\n这是固定教学回复，不是真实模型生成。等页面流程清楚后，再把模拟函数替换成 Java 网关请求。';
+function addMessage(role, text) { $('#welcome')?.remove(); const item = document.createElement('div'); item.className = `message ${role}`; const label = document.createElement('small'); label.textContent = role === 'user' ? '你' : role === 'error' ? '网关错误' : '✳ Java Mock Runtime'; const content = document.createElement('p'); content.textContent = text; item.append(label, content); $('#messages').append(item); $('#messages').scrollTop = $('#messages').scrollHeight; }
+async function gatewayCompletion(prompt) {
+  trace(0, 'done'); trace(1, 'active');
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10000);
+  try {
+    const response = await fetch('/v1/chat/completions', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: controller.signal,
+      body: JSON.stringify({ model: 'factory-mock-v1', messages: [{ role: 'user', content: prompt }], stream: false })
+    });
+    const requestId = response.headers.get('X-Request-Id');
+    $('#request-id').textContent = requestId || '未收到请求标识';
+    $('#request-id').title = requestId || '';
+    let data;
+    try { data = await response.json(); } catch { throw new Error('响应不是 JSON，请从 Java 网关地址打开页面。'); }
+    if (!response.ok) throw new Error(data.error?.message || `网关返回 HTTP ${response.status}`);
+    const reply = data.choices?.[0]?.message?.content;
+    if (typeof reply !== 'string') throw new Error('网关响应结构不正确');
+    trace(1, 'done'); trace(2, 'done');
+    $('#trace-status').textContent = `已完成 · Java 服务端 ${Number(data.metadata?.server_ms || 0).toFixed(1)} ms`;
+    return reply;
+  } catch (error) {
+    if (error.name === 'AbortError') throw new Error('请求超过 10 秒，已取消等待；请检查 Java 网关。');
+    if (error instanceof TypeError) throw new Error('无法连接 Java 网关，请确认服务已启动。');
+    throw error;
+  } finally { clearTimeout(timer); }
 }
 $('#chat-form').addEventListener('submit', async event => {
   event.preventDefault(); const prompt = $('#prompt').value.trim(); if (!prompt || busy) return;
   busy = true; $('#send').disabled = true; $('#clear-chat').disabled = true; $('#send').textContent = '处理中…';
   [0, 1, 2].forEach(step => trace(step, '')); $('#elapsed').textContent = '—';
-  $('#request-id').textContent = 'REQ / ' + (crypto.randomUUID ? crypto.randomUUID().slice(0, 8) : Date.now().toString(36));
-  $('#trace-status').textContent = '模拟请求进行中'; addMessage('user', prompt); $('#prompt').value = ''; const started = performance.now();
-  try { const reply = await mockCompletion(prompt); addMessage('assistant', reply); trace(2, 'done'); count++; $('#request-count').textContent = `${count} 次`; $('#elapsed').textContent = `${Math.round(performance.now() - started)} ms`; $('#trace-status').textContent = '模拟请求已完成'; }
-  catch { addMessage('assistant', '演示发生错误，请重新发送。'); $('#trace-status').textContent = '请求失败'; }
+  $('#request-id').textContent = '等待服务端标识';
+  $('#request-id').title = '';
+  $('#trace-status').textContent = '等待 Java 网关响应'; addMessage('user', prompt); $('#prompt').value = ''; const started = performance.now();
+  try { const reply = await gatewayCompletion(prompt); addMessage('assistant', reply); count++; $('#request-count').textContent = `${count} 次`; $('#elapsed').textContent = `${Math.round(performance.now() - started)} ms`; }
+  catch (error) { addMessage('error', error.message); trace(1, ''); document.querySelector('[data-step="1"] .step-state').textContent = '未完成'; $('#trace-status').textContent = '请求失败'; $('#prompt').value = prompt; }
   finally { busy = false; $('#send').disabled = false; $('#clear-chat').disabled = false; $('#send').textContent = '发送请求 ↑'; $('#prompt').focus(); }
 });
 $('#prompt').addEventListener('keydown', event => { if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); $('#chat-form').requestSubmit(); } });
