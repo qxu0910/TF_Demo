@@ -1,0 +1,39 @@
+name: Main pipeline tests
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  integration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Build and test C++
+        run: |
+          cmake -S runtime-cpp -B runtime-cpp/build -DCMAKE_BUILD_TYPE=Debug
+          cmake --build runtime-cpp/build --parallel 2
+          ctest --test-dir runtime-cpp/build --output-on-failure
+          python3 runtime-cpp/tests/test_http.py
+      - name: Test Java and end-to-end pipeline
+        run: |
+          runtime-cpp/build/runtime_server > /tmp/runtime.log 2>&1 &
+          runtime_pid=$!
+          bash gateway-java/start.sh > /tmp/gateway.log 2>&1 &
+          gateway_pid=$!
+          trap 'kill "$gateway_pid" "$runtime_pid" 2>/dev/null || true; cat /tmp/gateway.log /tmp/runtime.log' EXIT
+          for attempt in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8081/ready; then break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:8081/ready
+          python3 gateway-java/tests/test_gateway.py
+          python3 gateway-java/tests/test_failures.py
+      - name: Save verified Linux runtime
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-linux
+          path: runtime-cpp/build/runtime_server

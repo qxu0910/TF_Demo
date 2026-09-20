@@ -19,8 +19,14 @@ Response Runtime::handle(const Request& request) const {
 
     // 这里只为观察资源生命周期复制一份输入。生产代码应避免无必要的复制。
     Buffer input(request.prompt);
-    std::string reply = "C++ Mock Runtime received " + std::to_string(input.size())
-        + " bytes. No model or GPU was called.";
+    // 一个真实但很小的 CPU reduction，后续可以替换为 CUDA 算子。
+    unsigned long long byte_sum = 0;
+    for (std::size_t i = 0; i < input.size(); ++i)
+        byte_sum += static_cast<unsigned char>(input.at(i));
+    std::string reply = "C++ CPU demo processed " + std::to_string(input.size())
+        + " bytes. Byte sum = " + std::to_string(byte_sum)
+        + ".\n\nThe request reached the C++ worker through the Java gateway when using the web UI. "
+          "This is deterministic teaching output, not language model inference. No GPU was called.";
 
     // 先构造返回对象，再销毁局部变量 input；Response 拥有独立字符串。
     // 没有返回指向 input 内存的指针，因此不会出现悬空指针。

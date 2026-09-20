@@ -1,27 +1,11 @@
-# Mini Token Factory 前端
+# 学习实验室前端
 
-L9 页面已接入 L8 Java 网关，下游为 L7 Java Mock Runtime。前端使用原生 HTML、CSS、JavaScript，无构建步骤。
+原生 HTML、CSS、JavaScript，无构建步骤。当前链路是 L9 页面 → L8 Java → L7 C++ CPU 教学后端。
 
-在仓库根目录运行 `./gateway-java/start.ps1`，打开 `http://127.0.0.1:8081`。详见 [Java 网关文档](../gateway-java/README.md)。需要 JDK 17+，Ctrl+C 停止。
+先按 [根目录说明](../README.md) 启动两个服务，再打开 http://127.0.0.1:8081。页面顶部通过 /ready 检查下游状态，点击刷新可重新检查。响应中的实际后端名称用于显示 C++ 或显式 Java Mock 模式。
 
-旧 `serve/FrontendServer.java`、Python 静态服务器和直接打开 HTML 仅能预览页面，不能处理新的对话接口。
+从 app.js 的提交事件、gatewayCompletion 和 fetch 阅读请求发送逻辑。页面展示浏览器总耗时、Java 服务端耗时、C++ 排队和计算耗时；阶段完成状态是响应后确认，不是服务端实时事件流。
 
-## 代码阅读顺序
+当前是单轮、非流式教学回复，不是模型推理。历史气泡不会发送为上下文。客户端等待 10 秒，错误时保留输入，不自动重试。
 
-1. `index.html`：页面结构、输入框与响应容器。
-2. `styles.css`：布局、配色与移动端适配。
-3. `app.js`：从 `chat-form` 提交事件开始，跟踪 `gatewayCompletion` 中的 fetch、服务端 `Gateway.handle` 和 `addMessage`。
-
-## 当前边界
-
-- 对话通过真实 HTTP 调用 Java，回复为服务端预设教学文本，没有真实模型或 GPU 调用。每次只发送当前消息，历史气泡不构成多轮上下文。
-- 请求标识来自 Java，显示真实浏览器端到端耗时与服务端处理耗时。收到响应后才确认服务端阶段完成，不是实时事件流。请求次数仅统计当前页面会话成功请求。
-- 路线完成状态和手动保存的笔记存放在当前浏览器 localStorage，不会提交至 GitHub。清除浏览器数据会删除这些记录。
-- 8080 与 8081 是不同来源，旧预览的笔记不会自动迁移。
-- 清空对话仅清空消息和当前轨迹，不重置当前会话请求次数。
-
-## 验收与下一步
-
-发送预设或自定义问题，确认轨迹依次完成、按钮恢复、重复发送正常；空白输入不发送。学习路线和保存笔记刷新后仍可读取。检查手机宽度无横向滚动。
-
-已实现 `POST /v1/chat/completions` 和 10 秒客户端超时；失败后恢复输入供重试。下一阶段替换服务端 Mock。页面交互问题先定位 L9；HTTP 错误或超时按请求标识检查 L8 日志。
+学习进度和笔记仍保存在当前浏览器的 localStorage。不同端口属于不同来源，记录不自动迁移、不随 GitHub 同步。旧 FrontendServer.java、Python 静态服务或直接打开 HTML 只能预览，不能处理真实对话接口。

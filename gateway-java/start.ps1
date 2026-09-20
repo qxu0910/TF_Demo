@@ -1,4 +1,4 @@
-param([int]$Port = 8081)
+param([int]$Port = 8081, [ValidateSet('cpp','mock')][string]$RuntimeMode = 'cpp', [string]$RuntimeUrl = 'http://127.0.0.1:8082', [int]$TimeoutMs = 2000)
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path $PSScriptRoot -Parent
 $javaCommand = Get-Command java -ErrorAction SilentlyContinue
@@ -23,5 +23,5 @@ $sources = Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'src/main/java/fa
 & $javacPath --release 17 --add-modules jdk.httpserver -encoding UTF-8 -cp $dependency -d $classes $sources
 if ($LASTEXITCODE -ne 0) { throw 'Java compilation failed' }
 # 使用项目内完整路径，避免 Windows 短格式 TEMP 路径导致 JDK 内部回环连接失败。
-& $javaPath --add-modules jdk.httpserver "-Djdk.net.unixdomain.tmpdir=$projectRoot/tmp" "-Dfactory.frontend=$projectRoot/frontend" -cp "$classes;$dependency" factory.Gateway $Port
+& $javaPath --add-modules jdk.httpserver "-Djdk.net.unixdomain.tmpdir=$projectRoot/tmp" "-Dfactory.frontend=$projectRoot/frontend" "-Dfactory.runtime.mode=$RuntimeMode" "-Dfactory.runtime.url=$RuntimeUrl" "-Dfactory.runtime.timeoutMs=$TimeoutMs" -cp "$classes;$dependency" factory.Gateway $Port
 if ($LASTEXITCODE -ne 0) { throw 'Java gateway stopped with an error' }

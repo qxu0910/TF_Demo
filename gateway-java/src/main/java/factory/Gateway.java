@@ -15,7 +15,9 @@ import java.util.concurrent.*;
 public final class Gateway {
     private static final int MAX_BODY = 16 * 1024;
     private static final Gson JSON = new GsonBuilder().setStrictness(Strictness.STRICT).create();
-    private final MockRuntime runtime = new MockRuntime();
+    private final RuntimeClient runtime = new RuntimeClient();
+    private final java.util.concurrent.atomic.LongAdder completed = new java.util.concurrent.atomic.LongAdder();
+    private final java.util.concurrent.atomic.LongAdder failed = new java.util.concurrent.atomic.LongAdder();
     private final Path frontend;
 
     private Gateway(Path frontend) { this.frontend = frontend; }
@@ -33,7 +35,7 @@ public final class Gateway {
         server.createContext("/", gateway::handle);
         Runtime.getRuntime().addShutdownHook(new Thread(() -> { server.stop(1); pool.shutdownNow(); }));
         server.start();
-        System.out.println("Java Gateway + Mock Runtime: http://127.0.0.1:" + port);
+        System.out.println("Java Gateway (" + gateway.runtime.mode() + "): http://127.0.0.1:" + port);
     }
 
     private void handle(HttpExchange exchange) throws IOException {
@@ -49,7 +51,14 @@ public final class Gateway {
                 if (path.equals("/health")) {
                     method(exchange, "GET");
                     status = 200;
-                    send(exchange, status, Map.of("status", "ok", "runtime", "mock", "request_id", id));
+                    send(exchange, status, Map.of("status", "ok", "runtime", runtime.mode(), "request_id", id));
+                } else if (path.equals("/ready")) {
+                    method(exchange, "GET");
+                    boolean ready = runtime.ready(); status = ready ? 200 : 503;
+                    send(exchange, status, Map.of("status", ready ? "ready" : "not_ready", "runtime", runtime.mode(), "request_id", id));
+                } else if (path.equals("/metrics")) {
+                    method(exchange, "GET"); status = 200;
+                    send(exchange, status, Map.of("completed", completed.sum(), "failed", failed.sum(), "runtime", runtime.mode()));
                 } else if (path.equals("/v1/chat/completions")) {
                     method(exchange, "POST");
                     String type = exchange.getRequestHeaders().getFirst("Content-Type");
@@ -66,14 +75,16 @@ public final class Gateway {
                         throw new ApiError(400, "invalid_request", "JSON 格式或参数不正确：" + error.getMessage());
                     }
                     long runtimeStart = System.nanoTime();
-                    String reply = runtime.complete(request.prompt());
+                    RuntimeClient.Result result = runtime.complete(id, request.prompt());
                     double runtimeMs = millisSince(runtimeStart);
                     status = 200;
                     send(exchange, status, Map.of(
                         "id", "chatcmpl-" + id.substring(4), "object", "chat.completion",
                         "created", Instant.now().getEpochSecond(), "model", request.model(), "request_id", id,
-                        "choices", List.of(Map.of("index", 0, "message", Map.of("role", "assistant", "content", reply), "finish_reason", "stop")),
-                        "metadata", Map.of("runtime", "mock", "runtime_ms", runtimeMs, "server_ms", millisSince(started))));
+                        "choices", List.of(Map.of("index", 0, "message", Map.of("role", "assistant", "content", result.content()), "finish_reason", "stop")),
+                        "metadata", Map.of("runtime", runtime.mode(), "runtime_ms", runtimeMs, "server_ms", millisSince(started),
+                            "queue_ms", result.queueMs(), "compute_ms", result.computeMs(), "demo_work_ms", result.demoWorkMs())));
+                    completed.increment();
                 } else {
                     Map<String, String> files = Map.of("/", "index.html", "/index.html", "index.html", "/app.js", "app.js", "/styles.css", "styles.css");
                     String filename = files.get(path);
@@ -86,10 +97,16 @@ public final class Gateway {
                     exchange.sendResponseHeaders(status, bytes.length);
                     exchange.getResponseBody().write(bytes);
                 }
+            } catch (RuntimeClient.Failure error) {
+                failed.increment(); status = error.status;
+                if (status == 503) exchange.getResponseHeaders().set("Retry-After", "1");
+                send(exchange, status, Map.of("request_id", id, "error", Map.of("code", error.code, "message", error.getMessage())));
             } catch (ApiError error) {
+                if (exchange.getRequestURI().getPath().equals("/v1/chat/completions")) failed.increment();
                 status = error.status;
                 send(exchange, status, Map.of("request_id", id, "error", Map.of("code", error.code, "message", error.getMessage())));
             } catch (RuntimeException error) {
+                if (exchange.getRequestURI().getPath().equals("/v1/chat/completions")) failed.increment();
                 status = 500;
                 send(exchange, status, Map.of("request_id", id, "error", Map.of("code", "internal_error", "message", "服务内部错误")));
             }

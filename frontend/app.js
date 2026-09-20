@@ -1,4 +1,4 @@
-// L9: 页面通过同源 HTTP 调用 L8 Java 网关，L7 仍使用服务端 Mock。
+// L9 → L8 Java → L7 C++：服务状态与阶段耗时均来自真实 HTTP 响应。
 const $ = selector => document.querySelector(selector);
 const weeks = [
   ['L8', '建立系统骨架', 'Java 网关与 Mock Runtime 跑通端到端请求。'],
@@ -44,9 +44,24 @@ window.addEventListener('hashchange', () => navigate(location.hash.slice(1))); n
 const savedNote = readSaved('tf-note', ''); $('#note-text').value = typeof savedNote === 'string' ? savedNote : '';
 $('#note-text').addEventListener('input', () => { $('#save-status').textContent = '有未保存的修改'; });
 $('#save-note').addEventListener('click', () => { $('#save-status').textContent = save('tf-note', $('#note-text').value) ? '已保存到当前浏览器 · ' + new Date().toLocaleTimeString('zh-CN') : '保存失败：浏览器存储不可用，请复制备份'; });
-let busy = false; let count = 0;
+let busy = false; let count = 0; let runtimeName = '运行时';
+function showRuntime(mode) {
+  runtimeName = mode === 'cpp-cpu-demo' ? 'C++ CPU 演示' : 'Java Mock';
+  $('#runtime-name').textContent = runtimeName;
+}
+async function refreshReadiness() {
+  $('#connection-status').textContent = '检查服务状态…';
+  try {
+    const response = await fetch('/ready', { signal: AbortSignal.timeout(3000) });
+    const data = await response.json();
+    showRuntime(data.runtime);
+    $('#connection-status').textContent = response.ok ? `已连接 · ${runtimeName}` : '网关在线 · 下游未就绪';
+  } catch { $('#connection-status').textContent = '网关不可用'; }
+}
+$('#refresh-status').addEventListener('click', refreshReadiness);
+refreshReadiness();
 function trace(step, state) { const row = document.querySelector(`[data-step="${step}"]`); row.className = `trace-step ${state}`; row.querySelector('.step-state').textContent = state === 'done' ? '已完成' : state === 'active' ? '处理中' : step === 0 ? '待发送' : '待处理'; }
-function addMessage(role, text) { $('#welcome')?.remove(); const item = document.createElement('div'); item.className = `message ${role}`; const label = document.createElement('small'); label.textContent = role === 'user' ? '你' : role === 'error' ? '网关错误' : '✳ Java Mock Runtime'; const content = document.createElement('p'); content.textContent = text; item.append(label, content); $('#messages').append(item); $('#messages').scrollTop = $('#messages').scrollHeight; }
+function addMessage(role, text) { $('#welcome')?.remove(); const item = document.createElement('div'); item.className = `message ${role}`; const label = document.createElement('small'); label.textContent = role === 'user' ? '你' : role === 'error' ? '请求错误' : `✳ ${runtimeName}`; const content = document.createElement('p'); content.textContent = text; item.append(label, content); $('#messages').append(item); $('#messages').scrollTop = $('#messages').scrollHeight; }
 async function gatewayCompletion(prompt) {
   trace(0, 'done'); trace(1, 'active');
   const controller = new AbortController();
@@ -61,10 +76,18 @@ async function gatewayCompletion(prompt) {
     $('#request-id').title = requestId || '';
     let data;
     try { data = await response.json(); } catch { throw new Error('响应不是 JSON，请从 Java 网关地址打开页面。'); }
-    if (!response.ok) throw new Error(data.error?.message || `网关返回 HTTP ${response.status}`);
+    if (!response.ok) {
+      const error = new Error(data.error?.message || `网关返回 HTTP ${response.status}`);
+      error.downstream = String(data.error?.code || '').includes('runtime');
+      throw error;
+    }
     const reply = data.choices?.[0]?.message?.content;
     if (typeof reply !== 'string') throw new Error('网关响应结构不正确');
     trace(1, 'done'); trace(2, 'done');
+    showRuntime(data.metadata.runtime);
+    $('#connection-status').textContent = `已连接 · ${runtimeName}`;
+    $('#queue-time').textContent = `${Number(data.metadata.queue_ms).toFixed(2)} ms`;
+    $('#compute-time').textContent = `${Number(data.metadata.compute_ms).toFixed(2)} ms`;
     $('#trace-status').textContent = `已完成 · Java 服务端 ${Number(data.metadata?.server_ms || 0).toFixed(1)} ms`;
     return reply;
   } catch (error) {
@@ -77,11 +100,12 @@ $('#chat-form').addEventListener('submit', async event => {
   event.preventDefault(); const prompt = $('#prompt').value.trim(); if (!prompt || busy) return;
   busy = true; $('#send').disabled = true; $('#clear-chat').disabled = true; $('#send').textContent = '处理中…';
   [0, 1, 2].forEach(step => trace(step, '')); $('#elapsed').textContent = '—';
+  $('#queue-time').textContent = '—'; $('#compute-time').textContent = '—';
   $('#request-id').textContent = '等待服务端标识';
   $('#request-id').title = '';
   $('#trace-status').textContent = '等待 Java 网关响应'; addMessage('user', prompt); $('#prompt').value = ''; const started = performance.now();
   try { const reply = await gatewayCompletion(prompt); addMessage('assistant', reply); count++; $('#request-count').textContent = `${count} 次`; $('#elapsed').textContent = `${Math.round(performance.now() - started)} ms`; }
-  catch (error) { addMessage('error', error.message); trace(1, ''); document.querySelector('[data-step="1"] .step-state').textContent = '未完成'; $('#trace-status').textContent = '请求失败'; $('#prompt').value = prompt; }
+  catch (error) { addMessage('error', error.message); trace(1, error.downstream ? 'done' : ''); document.querySelector(`[data-step="${error.downstream ? 2 : 1}"] .step-state`).textContent = '失败'; $('#trace-status').textContent = '请求失败'; $('#prompt').value = prompt; refreshReadiness(); }
   finally { busy = false; $('#send').disabled = false; $('#clear-chat').disabled = false; $('#send').textContent = '发送请求 ↑'; $('#prompt').focus(); }
 });
 $('#prompt').addEventListener('keydown', event => { if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); $('#chat-form').requestSubmit(); } });

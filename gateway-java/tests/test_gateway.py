@@ -8,6 +8,7 @@ import urllib.request
 
 BASE = os.environ.get('GATEWAY_TEST_URL', 'http://127.0.0.1:8081')
 VALID = {'model': 'factory-mock-v1', 'messages': [{'role': 'user', 'content': '你好 Java 网关'}], 'stream': False}
+MODE = os.environ.get('GATEWAY_TEST_MODE', 'cpp-cpu-demo')
 
 def call(path='/v1/chat/completions', body=VALID, method='POST', content_type='application/json'):
     data = body if isinstance(body, bytes) else json.dumps(body, ensure_ascii=False).encode('utf-8')
@@ -26,8 +27,10 @@ class GatewayTests(unittest.TestCase):
         status, headers, body = call()
         self.assertEqual(status, 200)
         self.assertEqual(headers['X-Request-Id'], body['request_id'])
-        self.assertIn('Java', body['choices'][0]['message']['content'])
-        self.assertEqual(body['metadata']['runtime'], 'mock')
+        self.assertIn('C++' if MODE == 'cpp-cpu-demo' else 'Java', body['choices'][0]['message']['content'])
+        self.assertEqual(body['metadata']['runtime'], MODE)
+        self.assertGreaterEqual(body['metadata']['queue_ms'], 0)
+        self.assertGreaterEqual(body['metadata']['compute_ms'], 0)
         self.assertGreaterEqual(body['metadata']['server_ms'], body['metadata']['runtime_ms'])
         self.assertNotIn('usage', body)
 
@@ -56,6 +59,8 @@ class GatewayTests(unittest.TestCase):
 
     def test_page_and_health(self):
         self.assertEqual(call('/health', method='GET')[2]['status'], 'ok')
+        self.assertEqual(call('/ready', method='GET')[2]['status'], 'ready')
+        self.assertEqual(call('/metrics', method='GET')[2]['runtime'], MODE)
         for path in ['/', '/index.html', '/app.js', '/styles.css']:
             self.assertEqual(call(path, method='GET')[0], 200)
 

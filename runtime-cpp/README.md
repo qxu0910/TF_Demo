@@ -1,6 +1,6 @@
 # 第一节 C++：让一条请求走过对象与内存
 
-本节主层是 L4 运行时基础，练习对象生命周期和 CPU 内存；产物是未来 L7 推理运行时的骨架。预期上游为 L8 Java 网关。本版本独立运行，**尚未接入 HTTP、Java 或 GPU**，现有网页仍调用 Java Mock。
+本目录保留 L4 运行时基础的 `runtime_demo`，并新增 L7 `runtime_server`。后者已提供 HTTP 接口，默认供 L8 Java 网关调用；GPU 尚未接入。完整启动方式见 [项目说明](../README.md)。初学时仍可以按下面顺序阅读独立 demo。
 
 ## 从这里阅读
 
@@ -54,6 +54,8 @@ g++ -std=c++17 -Wall -Wextra -Wpedantic -Iruntime-cpp/include runtime-cpp/src/ma
 2. 将 `copied.set(0, 'L')` 改成别的字符，确认 original 不受影响。
 3. 将下标改成 100，观察越界异常如何被 main 捕获，退出码为 2。
 
-验收：正常和错误输入行为可预测；拷贝互不影响；移动后的目标保留数据；测试通过。这里未以工具证明无内存泄漏；有 GCC/Clang 的 Linux 环境可用 AddressSanitizer（地址检查器：检测越界和生命周期错误）进一步验证。
+验收：正常和错误输入行为可预测；拷贝互不影响；移动后的目标保留数据；测试通过。有 GCC/Clang 的 Linux 环境还可用 AddressSanitizer（地址检查器：检测越界和生命周期错误）进一步验证。
 
-排障先检查本节 L4 的编译与对象行为；未来接入 Java 后，再按请求标识分别检查 L8 调用和 L7 服务。下一节再增加网络接口与请求队列。
+排障先检查本节 L4 的编译与对象行为；服务链路按请求标识分别检查 L8 调用和 L7 服务。接着读 `src/server.cpp` 和 `src/scheduler.cpp`，理解网络接口、有界请求队列和固定线程池。
+
+`runtime_server [port] [workers] [queue_capacity] [demo_work_ms]` 默认参数为 8082、2、8、0。测试见 `tests/test_http.py` 和 `scheduler_tests.cpp`。依赖使用 [cpp-httplib v0.20.0](https://github.com/yhirose/cpp-httplib/tree/v0.20.0) 与 [nlohmann/json v3.11.3](https://github.com/nlohmann/json/tree/v3.11.3)，固定 SHA-256；可设置 CMake 的 RUNTIME_DEPS_DIR 使用已有已校验头文件。
