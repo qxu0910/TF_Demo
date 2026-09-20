@@ -1,0 +1,22 @@
+cmake_minimum_required(VERSION 3.16)
+project(token_factory_runtime LANGUAGES CXX)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+add_library(runtime src/runtime.cpp)
+target_include_directories(runtime PUBLIC include)
+target_compile_features(runtime PUBLIC cxx_std_17)
+if(MSVC)
+    target_compile_options(runtime PUBLIC /W4 /utf-8)
+else()
+    target_compile_options(runtime PUBLIC -Wall -Wextra -Wpedantic)
+endif()
+
+add_executable(runtime_demo src/main.cpp)
+target_link_libraries(runtime_demo PRIVATE runtime)
+
+enable_testing()
+add_executable(runtime_tests tests/runtime_tests.cpp)
+target_link_libraries(runtime_tests PRIVATE runtime)
+add_test(NAME runtime_tests COMMAND runtime_tests)
