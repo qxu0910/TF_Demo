@@ -24,6 +24,7 @@ bool valid_id(const std::string& id) {
     return !id.empty() && id.size() <= 128 && std::all_of(id.begin(), id.end(), [](unsigned char c) {
         return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '_';
     });
+}
 int number(const char* value, int min, int max) {
     std::size_t used = 0; int n = std::stoi(value, &used);
     if (used != std::string(value).size() || n < min || n > max) throw std::invalid_argument("invalid argument range");
