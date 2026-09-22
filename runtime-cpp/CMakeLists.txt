@@ -27,6 +27,8 @@ endif()
 
 add_executable(runtime_demo src/main.cpp)
 target_link_libraries(runtime_demo PRIVATE runtime)
+add_executable(byte_sum_benchmark ../cuda-kernels/src/benchmark.cpp)
+target_link_libraries(byte_sum_benchmark PRIVATE compute_backend)
 
 enable_testing()
 add_executable(byte_sum_tests ../cuda-kernels/tests/byte_sum_tests.cpp)

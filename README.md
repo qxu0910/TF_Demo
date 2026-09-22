@@ -44,6 +44,7 @@ Linux 下，在两个终端分别运行 `bash runtime-cpp/start.sh` 和 `bash ga
 6. [计算实现](runtime-cpp/src/runtime.cpp)：CPU 字节求和，后续更换为真实模型算子。
 
 详见 [接口契约](docs/interfaces.md)、[启动与排障](docs/runbook.md)。
+新增 [计算阶段计时与可重复基准](docs/benchmarks.md)：查看传输、kernel 和总调用耗时，并保存正确性验证后的 JSON 报告。
 
 ## 验证
 

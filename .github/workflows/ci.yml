@@ -30,6 +30,7 @@ jobs:
           cmake --build runtime-cpp/build --parallel 2
           ctest --test-dir runtime-cpp/build --output-on-failure
           python3 runtime-cpp/tests/test_http.py
+          python3 cuda-kernels/tests/test_benchmark.py
       - name: Test Java and end-to-end pipeline
         run: |
           runtime-cpp/build/runtime_server > /tmp/runtime.log 2>&1 &

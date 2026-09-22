@@ -1,6 +1,7 @@
 #pragma once // 同一个头文件在一次编译中只展开一次。
 
 #include <string>
+#include "byte_sum.hpp"
 
 namespace factory {
 
@@ -15,6 +16,7 @@ struct Response {
     std::string status;       // "success" 或 "invalid_request"
     std::string content;      // 成功时的教学回复
     std::string error;        // 失败时的原因
+    compute::Sample compute_profile{};
 };
 
 } // namespace factory

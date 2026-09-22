@@ -4,6 +4,7 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include <cmath>
 
 int main() {
     try {
@@ -16,7 +17,15 @@ int main() {
                 input[i] = static_cast<char>(value);
                 expected += value;
             }
-            if (factory::compute::byte_sum(input) != expected)
+            const auto sample = factory::compute::measure_byte_sum(input);
+            if (!std::isfinite(sample.total_ms) || sample.total_ms < 0)
+                throw std::runtime_error("invalid total time");
+            const bool device_stages = std::string(factory::compute::backend()) == "cpp-cuda-demo" && n != 0;
+            for (auto stage : {sample.h2d_ms, sample.kernel_ms, sample.d2h_ms}) {
+                if (stage.has_value() != device_stages || (stage && (!std::isfinite(*stage) || *stage < 0)))
+                    throw std::runtime_error("invalid stage availability/time");
+            }
+            if (sample.sum != expected)
                 throw std::runtime_error("sum mismatch at length " + std::to_string(n));
         }
         if (factory::compute::byte_sum(std::string(8192, '\xff')) != 2088960)

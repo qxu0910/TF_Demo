@@ -1,5 +1,6 @@
 #include "byte_sum.hpp"
 #include <stdexcept>
+#include <chrono>
 
 namespace factory::compute {
 std::uint32_t byte_sum_cpu(std::string_view input) {
@@ -9,7 +10,14 @@ std::uint32_t byte_sum_cpu(std::string_view input) {
     return sum;
 }
 #ifndef FACTORY_CUDA
-std::uint32_t byte_sum(std::string_view input) { return byte_sum_cpu(input); }
+Sample measure_byte_sum(std::string_view input) {
+    const auto start = std::chrono::steady_clock::now();
+    Sample result;
+    result.sum = byte_sum_cpu(input);
+    result.total_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+    return result;
+}
+std::uint32_t byte_sum(std::string_view input) { return measure_byte_sum(input).sum; }
 const char* backend() { return "cpp-cpu-demo"; }
 void check_backend() {}
 #endif

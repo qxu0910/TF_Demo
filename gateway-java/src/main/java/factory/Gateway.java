@@ -14,7 +14,7 @@ import java.util.concurrent.*;
 /** L8 网关：路由 → 限制请求体 → 解析与校验 → 调用 L7 → 统一响应。 */
 public final class Gateway {
     private static final int MAX_BODY = 16 * 1024;
-    private static final Gson JSON = new GsonBuilder().setStrictness(Strictness.STRICT).create();
+    private static final Gson JSON = new GsonBuilder().setStrictness(Strictness.STRICT).serializeNulls().create();
     private final RuntimeClient runtime = new RuntimeClient();
     private final java.util.concurrent.atomic.LongAdder completed = new java.util.concurrent.atomic.LongAdder();
     private final java.util.concurrent.atomic.LongAdder failed = new java.util.concurrent.atomic.LongAdder();
@@ -83,7 +83,7 @@ public final class Gateway {
                         "created", Instant.now().getEpochSecond(), "model", request.model(), "request_id", id,
                         "choices", List.of(Map.of("index", 0, "message", Map.of("role", "assistant", "content", result.content()), "finish_reason", "stop")),
                         "metadata", Map.of("runtime", result.backend(), "runtime_ms", runtimeMs, "server_ms", millisSince(started),
-                            "queue_ms", result.queueMs(), "compute_ms", result.computeMs(), "demo_work_ms", result.demoWorkMs())));
+                            "queue_ms", result.queueMs(), "compute_ms", result.computeMs(), "demo_work_ms", result.demoWorkMs(), "compute_profile", result.profile())));
                     completed.increment();
                 } else {
                     Map<String, String> files = Map.of("/", "index.html", "/index.html", "index.html", "/app.js", "app.js", "/styles.css", "styles.css");

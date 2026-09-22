@@ -33,6 +33,9 @@ class GatewayTests(unittest.TestCase):
         self.assertGreaterEqual(body['metadata']['compute_ms'], 0)
         self.assertGreaterEqual(body['metadata']['server_ms'], body['metadata']['runtime_ms'])
         self.assertNotIn('usage', body)
+        if MODE == 'cpp-cpu-demo':
+            self.assertEqual(body['metadata']['compute_profile']['sum'], sum(VALID['messages'][0]['content'].encode('utf-8')))
+            self.assertIsNone(body['metadata']['compute_profile']['kernel_event_ms'])
 
     def test_validation(self):
         invalid = [b'{', b'{} garbage', b'null', b'[]', b'{"model":}', b'\xff',

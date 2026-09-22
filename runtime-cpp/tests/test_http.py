@@ -64,6 +64,12 @@ class HttpTests(unittest.TestCase):
         self.assertEqual(data['backend'], 'cpp-cpu-demo')
         self.assertGreaterEqual(data['compute_ms'], 100)
         self.assertGreaterEqual(data['queue_ms'], 0)
+        profile = data['compute_profile']
+        self.assertEqual(profile['sum'], sum('hello 中文'.encode('utf-8')))
+        self.assertGreaterEqual(profile['total_ms'], 0)
+        self.assertIsNone(profile['kernel_event_ms'])
+        self.assertIsNone(profile['h2d_host_ms'])
+        self.assertIsNone(profile['d2h_host_ms'])
 
     def test_validation(self):
         for body in [b'{', b'null', self.request(prompt=''), self.request(prompt=' \n'),

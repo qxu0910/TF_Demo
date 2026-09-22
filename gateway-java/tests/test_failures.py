@@ -46,6 +46,20 @@ class Backend(http.server.BaseHTTPRequestHandler):
             return
         body = {'request_id': 'wrong-id' if mode == 'wrong-id' else request_id,
                 'backend': 'cpp-cuda-demo' if mode == 'cuda' else 'unknown' if mode == 'unknown' else 'cpp-cpu-demo', 'content': 'fixture response', 'queue_ms': 0, 'compute_ms': 1, 'demo_work_ms': 0}
+        if mode in ('profile', 'cuda-profile', 'bad-profile', 'negative-profile', 'fractional-sum', 'string-time'):
+            body['compute_profile'] = {'sum': 532, 'total_ms': 0.01, 'h2d_host_ms': None,
+                                       'kernel_event_ms': None, 'd2h_host_ms': None}
+            if mode == 'cuda-profile':
+                body['backend'] = 'cpp-cuda-demo'
+                body['compute_profile'].update(h2d_host_ms=0.001, kernel_event_ms=0.002, d2h_host_ms=0.003)
+            if mode == 'negative-profile':
+                body['compute_profile']['total_ms'] = -1
+            if mode == 'fractional-sum':
+                body['compute_profile']['sum'] = 1.5
+            if mode == 'string-time':
+                body['compute_profile']['total_ms'] = '0.01'
+            if mode == 'bad-profile':
+                body['compute_profile']['kernel_event_ms'] = 1
         if mode == 'malformed':
             body = {'unexpected': True}
         self.respond(200, body, request_id)
@@ -96,7 +110,7 @@ class GatewayFailures(unittest.TestCase):
 
     def test_errors(self):
         for mode, expected in [('503', 503), ('504', 504), ('500', 502), ('wrong-id', 502),
-                               ('malformed', 502), ('unknown', 502), ('disconnect', 502), ('slow', 504)]:
+                               ('malformed', 502), ('bad-profile', 502), ('negative-profile', 502), ('fractional-sum', 502), ('string-time', 502), ('unknown', 502), ('disconnect', 502), ('slow', 504)]:
             with self.subTest(mode=mode):
                 Backend.mode = mode
                 status, headers, body = self.call()
@@ -115,6 +129,18 @@ class GatewayFailures(unittest.TestCase):
             self.assertEqual(body['metadata']['runtime'], expected)
         Backend.mode = 'unknown'
         self.assertEqual(self.call('/ready', None)[0], 503)
+        Backend.mode = 'ok'
+
+    def test_compute_profile(self):
+        Backend.mode = 'profile'
+        status, _, body = self.call()
+        self.assertEqual(status, 200)
+        self.assertEqual(body['metadata']['compute_profile']['sum'], 532)
+        self.assertIsNone(body['metadata']['compute_profile']['kernel_event_ms'])
+        Backend.mode = 'cuda-profile'
+        status, _, body = self.call()
+        self.assertEqual(status, 200)
+        self.assertEqual(body['metadata']['compute_profile']['kernel_event_ms'], 0.002)
         Backend.mode = 'ok'
 
     def test_readiness(self):

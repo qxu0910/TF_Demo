@@ -100,7 +100,14 @@ int main(int argc, char** argv) {
                 error(response, status, id, result.response.status, result.response.error); return;
             }
             reply(response, 200, {{"request_id", id}, {"content", result.response.content}, {"backend", factory::compute::backend()},
-                {"queue_ms", result.queue_ms}, {"compute_ms", result.compute_ms}, {"demo_work_ms", work_ms}});
+                {"queue_ms", result.queue_ms}, {"compute_ms", result.compute_ms}, {"demo_work_ms", work_ms},
+                {"compute_profile", {
+                    {"sum", result.response.compute_profile.sum},
+                    {"total_ms", result.response.compute_profile.total_ms},
+                    {"h2d_host_ms", result.response.compute_profile.h2d_ms ? Json(*result.response.compute_profile.h2d_ms) : Json(nullptr)},
+                    {"kernel_event_ms", result.response.compute_profile.kernel_ms ? Json(*result.response.compute_profile.kernel_ms) : Json(nullptr)},
+                    {"d2h_host_ms", result.response.compute_profile.d2h_ms ? Json(*result.response.compute_profile.d2h_ms) : Json(nullptr)}
+                }}});
         });
         server.set_error_handler([](const auto&, auto& response) {
             if (response.body.empty()) error(response, response.status, response.get_header_value("X-Request-Id"), "http_error", "HTTP request rejected");

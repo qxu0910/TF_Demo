@@ -9,6 +9,7 @@ CUDA（统一计算设备架构）提供 GPU 编程与运行接口。本节把�
 2. `src/byte_sum.cpp`：CPU 参考实现，默认构建无需 CUDA。
 3. `src/byte_sum.cu`：显存生命周期、复制、kernel（GPU 上执行的函数）、归约。
 4. `tests/byte_sum_tests.cpp`：尾块、最大值、空输入、越界和并发验证。
+5. `src/benchmark.cpp`：预热、正确性核验与分位数报告，详见 [性能测量](../docs/benchmarks.md)。
 
 每个 block（线程块）有 256 个线程。各线程读取一个字节，不足一块的尾部填零。共享内存中的 256 个值依次合并成 128、64、32……1 个值。所有线程都必须经过每个同步点，不能让越界线程提前 return。最后每块的第一个线程用 atomicAdd 把块结果累加到同一个输出。
 

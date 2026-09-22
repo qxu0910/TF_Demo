@@ -34,10 +34,10 @@ public final class RuntimeClient {
     }
 
     public String mode() { return mock ? "java-mock" : observedBackend; }
-    public record Result(String content, double queueMs, double computeMs, int demoWorkMs, String backend) {}
+    public record Result(String content, double queueMs, double computeMs, int demoWorkMs, String backend, JsonObject profile) {}
 
     public Result complete(String id, String prompt) {
-        if (mock) return new Result(new MockRuntime().complete(prompt), 0, 0, 0, "java-mock");
+        if (mock) return new Result(new MockRuntime().complete(prompt), 0, 0, 0, "java-mock", new JsonObject());
         String body = JSON.toJson(Map.of("request_id", id, "prompt", prompt, "timeout_ms", timeoutMs));
         var request = HttpRequest.newBuilder(base.resolve("/internal/completions"))
             .header("Content-Type", "application/json").header("X-Request-Id", id)
@@ -58,9 +58,32 @@ public final class RuntimeClient {
             if (!Double.isFinite(queue) || !Double.isFinite(compute) || queue < 0 || compute < 0 || work < 0)
                 throw new IllegalArgumentException();
             String backend = data.get("backend").getAsString();
+            JsonObject profile = validateProfile(data, backend);
             observedBackend = backend;
-            return new Result(data.get("content").getAsString(), queue, compute, work, backend);
+            return new Result(data.get("content").getAsString(), queue, compute, work, backend, profile);
         } catch (RuntimeException error) { throw new Failure(502, "invalid_runtime_response", "C++ 响应格式或请求标识不正确"); }
+    }
+
+    // 旧版本 Runtime 可省略 profile；存在时必须完整且与后端一致。
+    private static JsonObject validateProfile(JsonObject data, String backend) {
+        if (!data.has("compute_profile")) return new JsonObject();
+        JsonObject profile = data.getAsJsonObject("compute_profile");
+        if (profile.size() != 5) throw new IllegalArgumentException();
+        for (String key : new String[]{"sum", "total_ms", "h2d_host_ms", "kernel_event_ms", "d2h_host_ms"}) {
+            JsonElement value = profile.get(key);
+            boolean deviceStage = key.endsWith("host_ms") || key.equals("kernel_event_ms");
+            if (deviceStage && backend.equals("cpp-cpu-demo")) {
+                if (value == null || !value.isJsonNull()) throw new IllegalArgumentException();
+                continue;
+            }
+            if (value == null || !value.isJsonPrimitive() || !value.getAsJsonPrimitive().isNumber())
+                throw new IllegalArgumentException();
+            double number = value.getAsDouble();
+            if (!Double.isFinite(number) || number < 0) throw new IllegalArgumentException();
+            if (key.equals("sum") && (number > 2088960 || value.getAsBigDecimal().stripTrailingZeros().scale() > 0))
+                throw new IllegalArgumentException();
+        }
+        return profile;
     }
 
     public boolean ready() {

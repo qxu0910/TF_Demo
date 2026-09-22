@@ -58,4 +58,6 @@
 
 ## 可选 CUDA 后端
 
+成功响应新增 compute_profile，并由 Java 透传至 metadata.compute_profile。字段和时间边界见 [性能测量](benchmarks.md)；旧后端省略该字段时 Java 输出空对象。
+
 内部响应 backend 允许 cpp-cpu-demo 或 cpp-cuda-demo；Java metadata.runtime 透传本次响应的 backend。/ready 探测实际后端，尚未探测时 Java 标识为 cpp-unknown。CUDA 构建启动时执行设备自检，不可用时退出，不回退 CPU。compute_ms 包含设备内存分配、数据复制和释放，不能解释为纯 kernel 耗时。
