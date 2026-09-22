@@ -1,6 +1,6 @@
 # 学习实验室前端
 
-原生 HTML、CSS、JavaScript，无构建步骤。当前链路是 L9 页面 → L8 Java → L7 C++ CPU 教学后端。
+原生 HTML、CSS、JavaScript，无构建步骤。当前链路是 L9 页面 → L8 Java → L7 C++ CPU / 可选 CUDA 教学后端。
 
 先按 [根目录说明](../README.md) 启动两个服务，再打开 http://127.0.0.1:8081。页面顶部通过 /ready 检查下游状态，点击刷新可重新检查。响应中的实际后端名称用于显示 C++ 或显式 Java Mock 模式。
 
