@@ -10,7 +10,7 @@ L8 Java 网关：输入校验、请求标识、下游超时与错误映射
 L7 C++ Runtime：有界队列、工作线程、CPU 字节归约演示
 ```
 
-这是可运行的 CPU 教学链路，不是真实语言模型。没有接入权重、Tokenizer、GPU、NCCL；也没有把未来的 12 周学习目标标为完成。
+这是可运行的 CPU 教学链路，不是真实语言模型。默认路径没有接入权重、Tokenizer、GPU、NCCL；也没有把未来的 12 周学习目标标为完成。
 
 ## Windows 启动
 
@@ -41,7 +41,7 @@ Linux 下，在两个终端分别运行 `bash runtime-cpp/start.sh` 和 `bash ga
 3. [下游客户端](gateway-java/src/main/java/factory/RuntimeClient.java)：Java 如何调用 C++。
 4. [C++ HTTP 服务](runtime-cpp/src/server.cpp)：解析请求并提交任务。
 5. [调度器](runtime-cpp/src/scheduler.cpp)：队列、线程、future、期限和停止。
-6. [计算实现](runtime-cpp/src/runtime.cpp)：CPU 字节求和，后续更换为真实算子。
+6. [计算实现](runtime-cpp/src/runtime.cpp)：CPU 字节求和，后续更换为真实模型算子。
 
 详见 [接口契约](docs/interfaces.md)、[启动与排障](docs/runbook.md)。
 
@@ -64,6 +64,8 @@ python gateway-java/tests/test_failures.py
 后一个测试会创建隔离的 Java 网关和可控假下游，验证 502/503/504、错误响应和请求标识不匹配，不影响主服务。
 
 ## 当前边界
+
+新增 [CUDA 字节归约教学后端](cuda-kernels/README.md)：默认仍为 CPU，显式 ENABLE_CUDA=ON 可构建真实 CUDA 路径；设备验证需在有 NVIDIA GPU 的环境执行。它直接被 Runtime 调用，尚不涉及模型推理。
 
 - 支持单轮、非流式请求。`factory-mock-v1` 是沿用的教学模型标识，不是实际加载的模型。
 - Java 默认调用 C++。仅显式指定 `-RuntimeMode mock` 才使用旧 Java Mock，不会故障时自动回退。

@@ -22,3 +22,6 @@ tmp/
 # OS metadata
 .DS_Store
 Thumbs.db
+
+# Separate CUDA build directory
+build-cuda/

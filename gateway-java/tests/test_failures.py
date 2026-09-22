@@ -31,7 +31,7 @@ class Backend(http.server.BaseHTTPRequestHandler):
         except ConnectionError:
             pass
     def do_GET(self):
-        self.respond(503 if self.mode == 'unready' else 200, {'status': 'ok', 'backend': 'cpp-cpu-demo'})
+        self.respond(503 if self.mode == 'unready' else 200, {'status': 'ok', 'backend': 'cpp-cuda-demo' if self.mode == 'cuda' else 'unknown' if self.mode == 'unknown' else 'cpp-cpu-demo'})
     def do_POST(self):
         self.rfile.read(int(self.headers['Content-Length']))
         request_id = self.headers['X-Request-Id']
@@ -45,7 +45,7 @@ class Backend(http.server.BaseHTTPRequestHandler):
             self.respond(int(mode), {'error': {'message': 'fixture'}}, request_id)
             return
         body = {'request_id': 'wrong-id' if mode == 'wrong-id' else request_id,
-                'backend': 'cpp-cpu-demo', 'content': 'fixture response', 'queue_ms': 0, 'compute_ms': 1, 'demo_work_ms': 0}
+                'backend': 'cpp-cuda-demo' if mode == 'cuda' else 'unknown' if mode == 'unknown' else 'cpp-cpu-demo', 'content': 'fixture response', 'queue_ms': 0, 'compute_ms': 1, 'demo_work_ms': 0}
         if mode == 'malformed':
             body = {'unexpected': True}
         self.respond(200, body, request_id)
@@ -96,7 +96,7 @@ class GatewayFailures(unittest.TestCase):
 
     def test_errors(self):
         for mode, expected in [('503', 503), ('504', 504), ('500', 502), ('wrong-id', 502),
-                               ('malformed', 502), ('disconnect', 502), ('slow', 504)]:
+                               ('malformed', 502), ('unknown', 502), ('disconnect', 502), ('slow', 504)]:
             with self.subTest(mode=mode):
                 Backend.mode = mode
                 status, headers, body = self.call()
@@ -105,6 +105,17 @@ class GatewayFailures(unittest.TestCase):
                 self.assertIn('error', body)
         Backend.mode = 'ok'
         self.assertEqual(self.call()[0], 200)
+
+    def test_backend_identity(self):
+        for mode, expected in [('cuda', 'cpp-cuda-demo'), ('ok', 'cpp-cpu-demo')]:
+            Backend.mode = mode
+            self.assertEqual(self.call('/ready', None)[2]['runtime'], expected)
+            status, _, body = self.call()
+            self.assertEqual(status, 200)
+            self.assertEqual(body['metadata']['runtime'], expected)
+        Backend.mode = 'unknown'
+        self.assertEqual(self.call('/ready', None)[0], 503)
+        Backend.mode = 'ok'
 
     def test_readiness(self):
         Backend.mode = 'unready'

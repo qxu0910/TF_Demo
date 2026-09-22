@@ -46,7 +46,7 @@ $('#note-text').addEventListener('input', () => { $('#save-status').textContent 
 $('#save-note').addEventListener('click', () => { $('#save-status').textContent = save('tf-note', $('#note-text').value) ? '已保存到当前浏览器 · ' + new Date().toLocaleTimeString('zh-CN') : '保存失败：浏览器存储不可用，请复制备份'; });
 let busy = false; let count = 0; let runtimeName = '运行时';
 function showRuntime(mode) {
-  runtimeName = mode === 'cpp-cpu-demo' ? 'C++ CPU 演示' : 'Java Mock';
+  runtimeName = ({ 'cpp-cpu-demo': 'C++ CPU 演示', 'cpp-cuda-demo': 'C++ CUDA 演示', 'java-mock': 'Java Mock' })[mode] || 'C++ 后端待确认';
   $('#runtime-name').textContent = runtimeName;
 }
 async function refreshReadiness() {

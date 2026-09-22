@@ -82,7 +82,7 @@ public final class Gateway {
                         "id", "chatcmpl-" + id.substring(4), "object", "chat.completion",
                         "created", Instant.now().getEpochSecond(), "model", request.model(), "request_id", id,
                         "choices", List.of(Map.of("index", 0, "message", Map.of("role", "assistant", "content", result.content()), "finish_reason", "stop")),
-                        "metadata", Map.of("runtime", runtime.mode(), "runtime_ms", runtimeMs, "server_ms", millisSince(started),
+                        "metadata", Map.of("runtime", result.backend(), "runtime_ms", runtimeMs, "server_ms", millisSince(started),
                             "queue_ms", result.queueMs(), "compute_ms", result.computeMs(), "demo_work_ms", result.demoWorkMs())));
                     completed.increment();
                 } else {

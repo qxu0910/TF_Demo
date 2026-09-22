@@ -55,3 +55,7 @@
 - 指标是进程内累计计数，重启归零；不是幂等账单。
 
 计算队列有明确容量。HTTP 接入层也限制工作线程和待处理连接；连接层过载可能被断开，Java 将其归为 502，不能把所有网络过载都解释为计算队列 503。
+
+## 可选 CUDA 后端
+
+内部响应 backend 允许 cpp-cpu-demo 或 cpp-cuda-demo；Java metadata.runtime 透传本次响应的 backend。/ready 探测实际后端，尚未探测时 Java 标识为 cpp-unknown。CUDA 构建启动时执行设备自检，不可用时退出，不回退 CPU。compute_ms 包含设备内存分配、数据复制和释放，不能解释为纯 kernel 耗时。

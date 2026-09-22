@@ -16,6 +16,10 @@ public final class RuntimeClient {
     private final HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(1))
         .followRedirects(HttpClient.Redirect.NEVER).build();
     private final boolean mock;
+    private volatile String observedBackend = "cpp-unknown";
+    private static boolean validBackend(String name) {
+        return name.equals("cpp-cpu-demo") || name.equals("cpp-cuda-demo");
+    }
 
     public RuntimeClient() {
         String mode = System.getProperty("factory.runtime.mode", "cpp");
@@ -29,11 +33,11 @@ public final class RuntimeClient {
         if (timeoutMs < 50 || timeoutMs > 8000) throw new IllegalArgumentException("timeout must be 50-8000 ms");
     }
 
-    public String mode() { return mock ? "java-mock" : "cpp-cpu-demo"; }
-    public record Result(String content, double queueMs, double computeMs, int demoWorkMs) {}
+    public String mode() { return mock ? "java-mock" : observedBackend; }
+    public record Result(String content, double queueMs, double computeMs, int demoWorkMs, String backend) {}
 
     public Result complete(String id, String prompt) {
-        if (mock) return new Result(new MockRuntime().complete(prompt), 0, 0, 0);
+        if (mock) return new Result(new MockRuntime().complete(prompt), 0, 0, 0, "java-mock");
         String body = JSON.toJson(Map.of("request_id", id, "prompt", prompt, "timeout_ms", timeoutMs));
         var request = HttpRequest.newBuilder(base.resolve("/internal/completions"))
             .header("Content-Type", "application/json").header("X-Request-Id", id)
@@ -48,12 +52,14 @@ public final class RuntimeClient {
             if (!id.equals(data.get("request_id").getAsString())
                 || !id.equals(response.headers().firstValue("X-Request-Id").orElse(""))
                 || !data.get("content").isJsonPrimitive() || !data.get("content").getAsJsonPrimitive().isString()
-                || !data.get("backend").getAsString().equals("cpp-cpu-demo")) throw new IllegalArgumentException();
+                || !validBackend(data.get("backend").getAsString())) throw new IllegalArgumentException();
             double queue = data.get("queue_ms").getAsDouble(), compute = data.get("compute_ms").getAsDouble();
             int work = data.get("demo_work_ms").getAsInt();
             if (!Double.isFinite(queue) || !Double.isFinite(compute) || queue < 0 || compute < 0 || work < 0)
                 throw new IllegalArgumentException();
-            return new Result(data.get("content").getAsString(), queue, compute, work);
+            String backend = data.get("backend").getAsString();
+            observedBackend = backend;
+            return new Result(data.get("content").getAsString(), queue, compute, work, backend);
         } catch (RuntimeException error) { throw new Failure(502, "invalid_runtime_response", "C++ 响应格式或请求标识不正确"); }
     }
 
@@ -62,8 +68,10 @@ public final class RuntimeClient {
         try {
             var response = exchange(HttpRequest.newBuilder(base.resolve("/health")).timeout(Duration.ofSeconds(1)).GET().build(), 1000);
             var body = JSON.fromJson(response.body(), JsonObject.class);
-            return response.statusCode() == 200 && body.get("status").getAsString().equals("ok")
-                && body.get("backend").getAsString().equals("cpp-cpu-demo");
+            boolean ready = response.statusCode() == 200 && body.get("status").getAsString().equals("ok")
+                && validBackend(body.get("backend").getAsString());
+            if (ready) observedBackend = body.get("backend").getAsString();
+            return ready;
         } catch (RuntimeException error) { return false; }
     }
 

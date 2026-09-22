@@ -42,7 +42,7 @@ Windows Visual Studio 构建：`./runtime-cpp/build/Debug/runtime_demo.exe`。
 
 ```sh
 mkdir -p runtime-cpp/build
-g++ -std=c++17 -Wall -Wextra -Wpedantic -Iruntime-cpp/include runtime-cpp/src/main.cpp runtime-cpp/src/runtime.cpp -o runtime-cpp/build/runtime_demo
+g++ -std=c++17 -Wall -Wextra -Wpedantic -Iruntime-cpp/include -Icuda-kernels/include runtime-cpp/src/main.cpp runtime-cpp/src/runtime.cpp cuda-kernels/src/byte_sum.cpp -o runtime-cpp/build/runtime_demo
 ./runtime-cpp/build/runtime_demo
 ```
 
@@ -59,3 +59,5 @@ g++ -std=c++17 -Wall -Wextra -Wpedantic -Iruntime-cpp/include runtime-cpp/src/ma
 排障先检查本节 L4 的编译与对象行为；服务链路按请求标识分别检查 L8 调用和 L7 服务。接着读 `src/server.cpp` 和 `src/scheduler.cpp`，理解网络接口、有界请求队列和固定线程池。
 
 `runtime_server [port] [workers] [queue_capacity] [demo_work_ms]` 默认参数为 8082、2、8、0。测试见 `tests/test_http.py` 和 `scheduler_tests.cpp`。依赖使用 [cpp-httplib v0.20.0](https://github.com/yhirose/cpp-httplib/tree/v0.20.0) 与 [nlohmann/json v3.11.3](https://github.com/nlohmann/json/tree/v3.11.3)，固定 SHA-256；可设置 CMake 的 RUNTIME_DEPS_DIR 使用已有已校验头文件。
+
+新增可选 CUDA 计算后端，构建与逐行学习见 [CUDA 教程](../cuda-kernels/README.md)。默认仍为 CPU。

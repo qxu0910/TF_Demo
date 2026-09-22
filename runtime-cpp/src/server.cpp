@@ -1,4 +1,5 @@
 #include "scheduler.hpp"
+#include "byte_sum.hpp"
 #include "httplib.h"
 #include "json.hpp"
 
@@ -39,6 +40,7 @@ int main(int argc, char** argv) {
         int workers = argc > 2 ? number(argv[2], 1, 32) : 2;
         int capacity = argc > 3 ? number(argv[3], 1, 256) : 8;
         int work_ms = argc > 4 ? number(argv[4], 0, 5000) : 0;
+        factory::compute::check_backend(); // 启动失败时不监听端口，也不静默回退 CPU。
         factory::Scheduler scheduler(workers, capacity, work_ms);
         httplib::Server server;
         server.set_payload_max_length(16 * 1024);
@@ -55,7 +57,7 @@ int main(int argc, char** argv) {
             return httplib::Server::HandlerResponse::Unhandled;
         });
         server.Get("/health", [&](const auto&, auto& response) {
-            reply(response, 200, {{"status", "ok"}, {"backend", "cpp-cpu-demo"}, {"demo_work_ms", work_ms}});
+            reply(response, 200, {{"status", "ok"}, {"backend", factory::compute::backend()}, {"demo_work_ms", work_ms}});
         });
         server.Get("/metrics", [&](const auto&, auto& response) {
             reply(response, 200, {{"queued", scheduler.queued()}, {"active", scheduler.active()},
@@ -97,7 +99,7 @@ int main(int argc, char** argv) {
                 int status = result.response.status == "timeout" ? 504 : result.response.status == "unavailable" ? 503 : result.response.status == "invalid_request" ? 400 : 500;
                 error(response, status, id, result.response.status, result.response.error); return;
             }
-            reply(response, 200, {{"request_id", id}, {"content", result.response.content}, {"backend", "cpp-cpu-demo"},
+            reply(response, 200, {{"request_id", id}, {"content", result.response.content}, {"backend", factory::compute::backend()},
                 {"queue_ms", result.queue_ms}, {"compute_ms", result.compute_ms}, {"demo_work_ms", work_ms}});
         });
         server.set_error_handler([](const auto&, auto& response) {
@@ -119,7 +121,7 @@ int main(int argc, char** argv) {
             while (!stopping && !finished) std::this_thread::sleep_for(std::chrono::milliseconds(20));
             if (stopping) { scheduler.stop(); server.stop(); }
         });
-        std::cout << "C++ CPU demo runtime on http://127.0.0.1:" << port << std::endl;
+        std::cout << factory::compute::backend() << " runtime on http://127.0.0.1:" << port << std::endl;
         bool success = server.listen_after_bind();
         finished = true;
         shutdown.join();

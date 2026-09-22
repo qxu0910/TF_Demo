@@ -27,7 +27,7 @@ class GatewayTests(unittest.TestCase):
         status, headers, body = call()
         self.assertEqual(status, 200)
         self.assertEqual(headers['X-Request-Id'], body['request_id'])
-        self.assertIn('C++' if MODE == 'cpp-cpu-demo' else 'Java', body['choices'][0]['message']['content'])
+        self.assertIn('C++' if MODE.startswith('cpp-') else 'Java', body['choices'][0]['message']['content'])
         self.assertEqual(body['metadata']['runtime'], MODE)
         self.assertGreaterEqual(body['metadata']['queue_ms'], 0)
         self.assertGreaterEqual(body['metadata']['compute_ms'], 0)

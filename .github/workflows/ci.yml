@@ -3,6 +3,18 @@ on: [push, pull_request, workflow_dispatch]
 permissions:
   contents: read
 jobs:
+  cuda-compile:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    container: nvidia/cuda:12.6.3-devel-ubuntu22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build tools
+        run: apt-get update && apt-get install -y --no-install-recommends cmake g++ make
+      - name: Compile CUDA without claiming GPU execution
+        run: |
+          cmake -S runtime-cpp -B runtime-cpp/build-cuda -DENABLE_CUDA=ON -DBUILD_RUNTIME_SERVER=OFF -DCMAKE_CUDA_ARCHITECTURES=75
+          cmake --build runtime-cpp/build-cuda --parallel 2
   integration:
     runs-on: ubuntu-24.04
     timeout-minutes: 15

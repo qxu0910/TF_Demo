@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
-args=()
+args=(-DENABLE_CUDA=OFF)
 if [[ -f "$root/tmp/runtime-deps/httplib.h" && -f "$root/tmp/runtime-deps/json.hpp" ]]; then
     args+=("-DRUNTIME_DEPS_DIR=$root/tmp/runtime-deps")
 fi
